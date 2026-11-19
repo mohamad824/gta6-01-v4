@@ -1,19 +1,189 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Block Dodger</title>
+<title>BRINEHAVEN — a tidal island city crime game</title>
+<link rel="icon" href="data:,">
 <style>
-  html, body { margin: 0; height: 100%; overflow: hidden; background: #11141b; }
-  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
-  /* Read aloud, never shown: the status line screen readers announce. */
-  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1210; }
+  body { font-family: Verdana, Geneva, sans-serif; color: #f0e8d8; }
+  #game { position: fixed; inset: 0; width: 1280px; height: 720px; display: block; }
+  #hud { position: fixed; inset: 0; width: 1280px; height: 720px; pointer-events: none; display: none; }
+  .panel { background: rgba(10, 16, 22, 0.72); border: 1px solid rgba(255, 200, 120, 0.28); border-radius: 8px; box-shadow: 0 2px 14px rgba(0,0,0,0.45); }
+
+  /* mission banner — top-left */
+  #mission-banner { position: absolute; top: 12px; left: 14px; width: 352px; padding: 10px 14px 11px; border-left: 3px solid #ffb84d; }
+  .mb-chapter { color: #ffb84d; font-size: 11px; letter-spacing: 2px; font-weight: bold; }
+  .mb-title { font-family: Georgia, serif; font-size: 27px; font-weight: bold; color: #fff; line-height: 1.15; margin: 2px 0 3px; }
+  .mb-objective { font-size: 12.5px; color: #e8dcc8; }
+  .mb-target { font-size: 12px; color: #7fe8a8; font-weight: bold; margin-top: 5px; }
+  .mb-pips { margin-top: 6px; }
+  .pip { display: inline-block; width: 34px; height: 7px; border-radius: 3px; background: #3a4448; margin-right: 5px; }
+  .pip.on { background: #ff8d4c; }
+  .mb-next { font-size: 11.5px; color: #c9bfa8; margin-top: 6px; }
+
+  /* wanted — centre-top */
+  #wanted { position: absolute; top: 10px; left: 50%; transform: translateX(-50%); text-align: center; }
+  .w-title { font-size: 21px; letter-spacing: 7px; font-weight: bold; color: #ffe9c0; text-shadow: 0 2px 8px rgba(0,0,0,0.7); }
+  .w-stars .star, .cash-stars .star { font-size: 22px; color: #4a4440; text-shadow: 0 1px 4px rgba(0,0,0,0.8); margin: 0 2px; }
+  .w-stars .star.on, .cash-stars .star.on { color: #ffd24d; }
+
+  /* cash — top-right */
+  #cash-block { position: absolute; top: 10px; right: 14px; text-align: right; }
+  .cash-day { font-size: 11.5px; letter-spacing: 1.5px; color: #e8dcc8; text-shadow: 0 1px 4px rgba(0,0,0,0.8); }
+  .cash-value { font-size: 46px; font-weight: bold; color: #87e397; text-shadow: 0 2px 10px rgba(0,0,0,0.75); line-height: 1.05; }
+  .cash-stars { font-size: 13px; }
+
+  /* weapon slots */
+  #weapons { position: absolute; top: 112px; right: 14px; display: flex; gap: 6px; }
+  .wslot { width: 74px; padding: 6px 4px 5px; text-align: center; background: rgba(10,16,22,0.72); border: 1px solid rgba(255,200,120,0.28); border-radius: 6px; }
+  .wslot.locked { opacity: 0.45; }
+  .w-num { display: block; font-size: 9px; color: #ffb84d; }
+  .w-name { display: block; font-size: 11px; font-weight: bold; color: #fff; margin: 2px 0 1px; }
+  .w-ammo { display: block; font-size: 10px; color: #7fe8a8; }
+
+  /* police roster — mid-left */
+  #roster { position: absolute; top: 200px; left: 14px; width: 336px; padding: 9px 12px 8px; }
+  .roster-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; border-bottom: 1px solid rgba(255,200,120,0.25); padding-bottom: 5px; margin-bottom: 4px; }
+  .roster-title { color: #ffb84d; font-size: 11.5px; letter-spacing: 1px; font-weight: bold; white-space: nowrap; }
+  .roster-count { color: #f0e8d8; font-size: 11px; font-weight: bold; white-space: nowrap; }
+  .r-row { display: flex; align-items: center; gap: 7px; padding: 2.5px 0; font-size: 12px; }
+  .r-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .r-dot.car { background: #ff5a4d; } .r-dot.boat { background: #4fa8d8; } .r-dot.air { background: #ffb84d; }
+  .r-name { font-weight: bold; color: #fff; width: 86px; }
+  .r-type { color: #b8ac96; width: 58px; font-size: 10.5px; }
+  .r-dist { color: #e8dcc8; width: 36px; text-align: right; }
+  .r-status { margin-left: auto; font-size: 9.5px; font-weight: bold; letter-spacing: 0.5px; padding: 2px 7px; border-radius: 3px; color: #0e1418; }
+  .st-grounded { background: #8a9a8e; } .st-pursuit { background: #ff8d4c; }
+  .st-roadblock { background: #b07fd8; } .st-spotlight { background: #4fa8d8; }
+  .st-docked { background: #6a7a8a; }
+  .roster-foot { font-size: 10.5px; color: #b8ac96; margin-top: 5px; }
+
+  /* tide banner — right, below weapons */
+  #tide-banner { position: absolute; top: 196px; right: 14px; width: 302px; padding: 9px 13px; text-align: right; }
+  .tide-label { color: #7fd0e8; font-size: 13px; font-weight: bold; letter-spacing: 1.5px; }
+  .tide-note { font-size: 11px; color: #e8dcc8; margin-top: 3px; }
+  .tide-bar { height: 6px; background: #2a3438; border-radius: 3px; margin-top: 7px; overflow: hidden; }
+  .tide-bar i { display: block; height: 100%; background: linear-gradient(90deg, #3a8fa8, #7fd0e8); }
+  #insight-strip { position: absolute; top: 168px; right: 14px; background: #c02028; color: #fff; font-size: 10.5px; font-weight: bold; letter-spacing: 0.5px; padding: 4px 10px; border-radius: 4px; }
+
+  /* minimap — bottom-left */
+  #minimap-wrap { position: absolute; left: 14px; bottom: 34px; width: 200px; }
+  #minimap { width: 200px; height: 200px; border-radius: 50%; border: 3px solid #d8a84d; box-shadow: 0 0 0 2px rgba(0,0,0,0.5), 0 4px 18px rgba(0,0,0,0.6); display: block; background: #12333d; }
+  #district-label { font-size: 11px; letter-spacing: 1px; color: #f0e8d8; text-shadow: 0 1px 3px #000; margin-top: 5px; font-weight: bold; }
+  .bars { margin-top: 4px; }
+  .bar-row { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+  .bar-row span { font-size: 9px; color: #c9bfa8; width: 40px; line-height: 1.1; }
+  .bar { flex: 1; height: 7px; background: #2a3438; border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: #7fe8a8; }
+  .bar.rep i { background: #ff8d4c; }
+  .bar.glass i { background: #4fd8c0; }
+  .bar-row b { font-size: 10px; color: #fff; width: 34px; text-align: right; }
+
+  /* dialogue — bottom-centre */
+  #dialogue { position: absolute; left: 50%; transform: translateX(-50%); bottom: 76px; width: 560px; padding: 10px 14px; display: flex; gap: 12px; align-items: center; }
+  .dlg-portrait { width: 52px; height: 52px; flex: none; border-radius: 50%; background: linear-gradient(135deg, #b07fd8, #7a4a9a); border: 2px solid #ffd98a; color: #fff; font-family: Georgia, serif; font-size: 26px; font-weight: bold; display: flex; align-items: center; justify-content: center; }
+  .dlg-name { color: #ffb84d; font-size: 11px; letter-spacing: 1px; font-weight: bold; }
+  .dlg-line { font-size: 13.5px; color: #fff; font-style: italic; margin-top: 3px; line-height: 1.35; }
+
+  /* radio + vehicle card — bottom-right */
+  #radio { position: absolute; right: 14px; bottom: 216px; width: 302px; padding: 8px 13px; text-align: right; }
+  .radio-station { color: #ff7ad9; font-size: 13px; font-weight: bold; }
+  .radio-track { font-size: 11.5px; color: #e8dcc8; margin-top: 2px; }
+  #vehicle-card { position: absolute; right: 14px; bottom: 76px; width: 302px; padding: 10px 14px 11px; }
+  .vc-name { color: #ffb84d; font-size: 13.5px; font-weight: bold; letter-spacing: 0.5px; text-align: center; }
+  .vc-cond { font-size: 10.5px; color: #c9bfa8; text-align: center; margin-top: 3px; letter-spacing: 1px; }
+  .vc-bar { height: 7px; background: #2a3438; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  .vc-bar i { display: block; height: 100%; background: #7fe8a8; }
+  .vc-speed { display: flex; align-items: baseline; justify-content: center; gap: 6px; margin-top: 4px; }
+  .vc-num { font-size: 62px; font-weight: bold; color: #fff; line-height: 1; text-shadow: 0 2px 8px rgba(0,0,0,0.6); }
+  .vc-unit { font-size: 12px; color: #c9bfa8; }
+  .vc-gear { background: #ffb84d; color: #1a1210; font-size: 12px; font-weight: bold; padding: 2px 8px; border-radius: 4px; }
+
+  /* score popups — centre */
+  #popups { position: absolute; left: 50%; top: 36%; transform: translateX(-50%); text-align: center; }
+  .popup { font-size: 30px; font-weight: bold; color: #ffd98a; text-shadow: 0 2px 6px rgba(0,0,0,0.85), 0 0 22px rgba(255,180,80,0.45); letter-spacing: 1px; margin-top: 4px; }
+  #steal-prompt { position: absolute; left: 50%; top: 56%; transform: translateX(-50%); background: rgba(10,16,22,0.85); border: 1px solid #ffb84d; color: #ffd98a; font-size: 17px; font-weight: bold; letter-spacing: 1px; padding: 8px 18px; border-radius: 6px; display: none; }
+
+  /* controls strip */
+  #controls { position: absolute; left: 50%; bottom: 8px; transform: translateX(-50%); font-size: 11.5px; color: #e8dcc8; text-shadow: 0 1px 3px #000; white-space: nowrap; }
+  #controls b { color: #ffb84d; }
+
+  /* garage: mission passed + upgrades — RIGHT side, car lives on the LEFT */
+  #mission-passed { position: absolute; top: 118px; right: 14px; width: 480px; padding: 14px 18px; text-align: center; display: none; }
+  .mp-title { font-family: Georgia, serif; font-size: 40px; font-weight: bold; letter-spacing: 3px; color: #ffd98a; text-shadow: 0 2px 10px rgba(0,0,0,0.7); }
+  .mp-reward { font-size: 19px; font-weight: bold; color: #7fe8a8; margin-top: 4px; }
+  .mp-sub { font-size: 12px; color: #e8dcc8; margin-top: 5px; letter-spacing: 1px; }
+  #upgrade-panel { position: absolute; top: 228px; right: 14px; width: 480px; padding: 12px 16px 10px; display: none; }
+  .up-head { font-family: Georgia, serif; font-size: 24px; font-weight: bold; color: #7fe8a8; }
+  .up-sub { font-size: 11px; color: #ffb84d; letter-spacing: 1px; font-weight: bold; margin: 2px 0 8px; }
+  .up-stat { display: flex; align-items: center; gap: 8px; font-size: 10px; color: #c9bfa8; margin-top: 2px; }
+  .up-stat span { width: 96px; }
+  .up-bar { flex: 1; height: 7px; background: #2a3438; border-radius: 3px; overflow: hidden; }
+  .up-bar i { display: block; height: 100%; background: #ffb84d; }
+  .up-row { display: flex; align-items: center; gap: 9px; padding: 4px 0; border-top: 1px solid rgba(255,200,120,0.16); margin-top: 6px; }
+  .up-key { color: #ffb84d; font-weight: bold; font-size: 13px; width: 12px; }
+  .up-name { font-size: 12.5px; font-weight: bold; color: #fff; flex: 1; }
+  .up-name small { display: block; font-size: 10.5px; font-weight: normal; color: #b8ac96; margin-top: 1px; }
+  .up-dots { color: #7fe8a8; font-size: 10px; letter-spacing: 2px; }
+  .up-price { color: #7fe8a8; font-weight: bold; font-size: 14px; }
+  .up-foot { font-size: 10.5px; color: #b8ac96; margin-top: 8px; }
+  /* garage mode: the MISSION PASSED corner owns the right side, so the tide
+     banner, weapon slots and vehicle card step aside (the upgrade panel
+     already carries the car name and condition); the dialogue narrows to
+     clear the upgrade panel. */
+  .garage-mode #tide-banner, .garage-mode #weapons, .garage-mode #vehicle-card { display: none !important; }
+  .garage-mode #dialogue { width: 400px; left: 370px; transform: none; }
+
+  /* map overlay */
+  #map-overlay { position: fixed; inset: 0; width: 1280px; height: 720px; display: none; align-items: center; justify-content: center; background: rgba(6, 10, 14, 0.78); z-index: 5; }
+  #map-panel { width: 1170px; max-height: 690px; padding: 16px 20px 14px; background: rgba(10, 18, 24, 0.96); border: 1px solid rgba(255, 200, 120, 0.35); border-radius: 10px; }
+  .map-title { font-family: Georgia, serif; font-size: 42px; font-weight: bold; letter-spacing: 8px; color: #fff; }
+  .map-title span { color: #ffb84d; }
+  .map-sub { font-size: 11px; letter-spacing: 2px; color: #b8ac96; margin: 3px 0 12px; }
+  .map-cols { display: flex; gap: 22px; }
+  .map-left { width: 648px; flex: none; }
+  #island-map, #tide-chart { display: block; width: 640px; border: 1px solid rgba(255,200,120,0.25); border-radius: 6px; background: #12262e; }
+  #island-map { height: 300px; }
+  #tide-chart { height: 86px; margin-top: 8px; }
+  .map-legend { font-size: 10.5px; color: #b8ac96; margin-top: 8px; line-height: 1.5; }
+  #map-close { margin-top: 9px; background: #ffb84d; color: #1a1210; border: 0; border-radius: 6px; font-weight: bold; font-size: 13px; padding: 9px 22px; cursor: pointer; pointer-events: auto; }
+  .map-right { flex: 1; font-size: 12.5px; }
+  .map-sec { color: #ffb84d; font-size: 12px; letter-spacing: 2px; font-weight: bold; margin: 2px 0 6px; }
+  .map-ch-row, .map-crew-row, .map-stat-row { display: flex; justify-content: space-between; gap: 10px; padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .map-ch-row.active { color: #ffb84d; font-weight: bold; }
+  .map-ch-state.done { color: #7fe8a8; } .map-ch-state.active { color: #ffb84d; } .map-ch-state.locked { color: #8a9a9e; }
+  .map-crew-row span:last-child, .map-stat-row b { color: #e8dcc8; font-weight: normal; text-align: right; }
+  .map-stat-row b { color: #fff; font-weight: bold; }
+  .map-crew { margin-bottom: 10px; }
+
+  /* start screen */
+  #start-screen { position: fixed; inset: 0; width: 1280px; height: 720px; display: none; flex-direction: column; align-items: center; justify-content: center; background: linear-gradient(180deg, rgba(60,30,70,0.55), rgba(20,10,8,0.82)); z-index: 10; text-align: center; }
+  .start-kicker { letter-spacing: 6px; font-size: 13px; color: #ffb84d; font-weight: bold; }
+  .start-title { font-family: Georgia, serif; font-size: 92px; font-weight: bold; letter-spacing: 14px; color: #fff; text-shadow: 0 4px 30px rgba(255,140,60,0.5); margin: 8px 0 4px; }
+  .start-tag { font-size: 16px; color: #e8dcc8; font-style: italic; max-width: 640px; line-height: 1.5; }
+  .start-play { margin-top: 26px; font-size: 20px; font-weight: bold; letter-spacing: 3px; color: #1a1210; background: #ffb84d; border-radius: 8px; padding: 12px 34px; }
+  .start-controls { margin-top: 22px; font-size: 12.5px; color: #c9bfa8; line-height: 1.9; }
+  .start-save { margin-top: 14px; font-size: 11.5px; color: #8a9a9e; }
 </style>
 </head>
 <body>
-<canvas id="game" aria-label="Block Dodger: move the paddle left and right to dodge falling blocks and catch coins"></canvas>
-<p id="status" role="status" aria-live="polite"></p>
+<canvas id="game" width="1280" height="720"></canvas>
+<div id="hud"></div>
+<div id="map-overlay"></div>
+<div id="start-screen">
+  <div class="start-kicker">A TIDAL ISLAND CITY · SEVEN TIDES · ONE DEBT</div>
+  <div class="start-title">BRINEHAVEN</div>
+  <div class="start-tag">Nadia Ferro owes the harbour company $12,400. Fixer Bram Okafor offers her seven jobs — one per tide — to clear it. The causeway floods twice a day. So do the odds.</div>
+  <div class="start-play">PRESS ENTER TO PLAY</div>
+  <div class="start-controls">WASD drive / walk &nbsp;·&nbsp; E enter · steal car &nbsp;·&nbsp; SPACE brake &nbsp;·&nbsp; F shoot &nbsp;·&nbsp; SHIFT nitro &nbsp;·&nbsp; M map &nbsp;·&nbsp; G garage &nbsp;·&nbsp; P pause<br>Steal cars, outrun the Harbour Wardens, collect Drift Glass, work the seven tides.</div>
+  <div class="start-save">SAVE SLOT 1 · progress saves automatically · BRINE FM 91.4 on the dial</div>
+</div>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
 <script type="module" src="./src/main.js"></script>
 </body>
 </html>
